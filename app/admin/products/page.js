@@ -24,6 +24,7 @@ export default function AdminProductsPage() {
   const [newCategory, setNewCategory] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [scraping, setScraping] = useState(false);
 
   async function loadAll() {
     const [pRes, cRes] = await Promise.all([fetch('/api/products'), fetch('/api/categories')]);
@@ -89,6 +90,42 @@ export default function AdminProductsPage() {
       setError('Something went wrong. Please try again.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleScrape() {
+    if (!form.affiliate_url.trim()) {
+      setError('Enter an Amazon or Flipkart product URL first.');
+      return;
+    }
+
+    setError('');
+    setScraping(true);
+    try {
+      const res = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.affiliate_url.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to scrape product details.');
+        return;
+      }
+
+      setForm((current) => ({
+        ...current,
+        name: data.name || current.name,
+        description: data.description || current.description,
+        image_url: data.image_url || current.image_url,
+        price: data.price || current.price,
+        currency: data.currency || current.currency,
+        source_site: data.source_site || current.source_site
+      }));
+    } catch {
+      setError('Unable to scrape this URL. Please try again.');
+    } finally {
+      setScraping(false);
     }
   }
 
@@ -253,13 +290,24 @@ export default function AdminProductsPage() {
                 <label className="text-sm font-medium text-stone-700">
                   Affiliate / Product URL
                 </label>
-                <input
-                  required
-                  value={form.affiliate_url}
-                  onChange={(e) => setForm({ ...form, affiliate_url: e.target.value })}
-                  placeholder="https://amazon.in/dp/... ?tag=youraffiliateid"
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2"
-                />
+                <div className="mt-1 flex gap-2">
+                  <input
+                    required
+                    value={form.affiliate_url}
+                    onChange={(e) => setForm({ ...form, affiliate_url: e.target.value })}
+                    placeholder="https://amazon.in/dp/..."
+                    className="w-full rounded-lg border border-stone-300 px-3 py-2"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleScrape}
+                    disabled={scraping}
+                    className="whitespace-nowrap rounded-lg border border-brand-600 px-3 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+                  >
+                    {scraping ? 'Reading...' : 'Fetch details'}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-stone-500">Supports Amazon and Flipkart product URLs.</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-stone-700">Category</label>
